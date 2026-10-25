@@ -1,14 +1,11 @@
 /**
  * PC host runtime — the HeyClicky/Dots actuator layer for desktops.
  *
- * The contract below mirrors what both RE studies proved out:
- *  - HeyClicky: screen capture, input injection, app launching, files.
- *  - Dots (sky window2): per-window state, list apps/windows, accessibility
- *    actions — plus a "full desktop" mode.
- *
- * This is the stub implementation: every command logs and returns a
- * placeholder so the full agent loop works end-to-end before the native
-import type { Runtime } from '../registry.js';
+ * Contract mirrors both RE studies: screen capture, window listing,
+ * input injection (coordinate or a11y-indexed), app launch, file read.
+ * Execution goes through a NativeDriver: PowerShell+.NET on Windows,
+ * X11 tools on Linux, a fake driver for tests and dry runs.
+ * Commands with `defaultApproval: ASK_ALWAYS` always gate first.
  */
 
 import type {
@@ -20,13 +17,14 @@ import type {
   TriggerEvent,
 } from '../types.js';
 import type { Runtime } from '../registry.js';
+import { detectDriver, type NativeDriver } from './pc-drivers.js';
 
 const SPECS: CommandSpec[] = [
   {
     id: 'pc.screenshot',
     version: 'v1',
-    title: 'Take a screenshot of a window or the whole desktop',
-    description: 'Captures the screen (a window, or the full desktop if no window id given).',
+    title: 'Take a screenshot of the desktop',
+    description: 'Captures the screen and returns a PNG (base64).',
     args: [
       { name: 'windowId', type: 'string', description: 'Optional window id; omit for full desktop', required: false },
     ],
@@ -43,13 +41,11 @@ const SPECS: CommandSpec[] = [
   {
     id: 'pc.click',
     version: 'v1',
-    title: 'Click in a window',
-    description: 'Clicks at a coordinate or on an accessibility element of a window.',
+    title: 'Click on the screen',
+    description: 'Clicks at a coordinate on the desktop.',
     args: [
-      { name: 'windowId', type: 'string', description: 'Target window', required: true },
-      { name: 'x', type: 'number', description: 'X coordinate', required: false },
-      { name: 'y', type: 'number', description: 'Y coordinate', required: false },
-      { name: 'elementIndex', type: 'number', description: 'Accessibility element index instead of coordinates', required: false },
+      { name: 'x', type: 'number', description: 'X coordinate', required: true },
+      { name: 'y', type: 'number', description: 'Y coordinate', required: true },
     ],
     defaultApproval: 'ASK_ALWAYS',
   },
@@ -57,22 +53,16 @@ const SPECS: CommandSpec[] = [
     id: 'pc.type_text',
     version: 'v1',
     title: 'Type text into the focused window',
-    description: 'Injects keyboard input into a window. NEVER use for passwords/secrets.',
-    args: [
-      { name: 'windowId', type: 'string', description: 'Target window', required: true },
-      { name: 'text', type: 'string', description: 'Text to type', required: true },
-    ],
+    description: 'Injects keyboard input. NEVER use for passwords/secrets.',
+    args: [{ name: 'text', type: 'string', description: 'Text to type', required: true }],
     defaultApproval: 'ASK_ALWAYS',
   },
   {
     id: 'pc.press_key',
     version: 'v1',
     title: 'Press a key chord',
-    description: 'Presses a key or key chord (e.g. "ctrl+s") in a window.',
-    args: [
-      { name: 'windowId', type: 'string', description: 'Target window', required: true },
-      { name: 'keys', type: 'string', description: 'Key chord, "+"-separated', required: true },
-    ],
+    description: 'Presses a key or key chord (e.g. "ctrl+s").',
+    args: [{ name: 'keys', type: 'string', description: 'Key chord, "+"-separated', required: true }],
     defaultApproval: 'ASK_ALWAYS',
   },
   {
@@ -86,7 +76,7 @@ const SPECS: CommandSpec[] = [
   {
     id: 'pc.files.read',
     version: 'v1',
-    title: 'Read a file from the user machine',
+    title: 'Read a file on the user machine',
     description: 'Reads a text file (truncated). Sensitive paths should be refused.',
     args: [{ name: 'path', type: 'string', description: 'Absolute file path', required: true }],
     defaultApproval: 'ASK_ALWAYS',
@@ -95,20 +85,21 @@ const SPECS: CommandSpec[] = [
 
 export interface PcHostOptions {
   runtimeId?: string;
-  /** Set to true once native backends are wired; stub otherwise. */
-  enabled?: boolean;
+  /** Explicit driver; when omitted, detectDriver() probes the machine. */
+  driver?: NativeDriver;
 }
 
 export class PcHostRuntime implements Runtime {
   readonly runtimeId: string;
-  private enabled: boolean;
+  private driver?: NativeDriver;
 
   constructor(opts: PcHostOptions = {}) {
     this.runtimeId = opts.runtimeId ?? 'pc-host';
-    this.enabled = opts.enabled ?? false;
+    this.driver = opts.driver;
   }
 
   async snapshot(): Promise<CapabilitySnapshot> {
+    if (!this.driver) this.driver = await detectDriver();
     return {
       runtimeId: this.runtimeId,
       runtimeKind: 'pc-host',
@@ -123,33 +114,84 @@ export class PcHostRuntime implements Runtime {
   }
 
   async invoke(cmd: InvokeCommand): Promise<CommandResult> {
-    if (!this.enabled) {
+    if (!this.driver) this.driver = await detectDriver();
+    if (!this.driver) {
       return {
         invocationId: cmd.invocationId,
         ok: false,
         error: {
-          code: 501,
-          message: `pc-host native backend not wired yet (stub build); '${cmd.commandId}' is the contract only`,
+          code: 503,
+          message: 'no native driver available on this machine (need Windows or an X11 Linux desktop)',
           retryable: false,
         },
       };
     }
-    // Native backends (Win32/UIA on Windows, AT-SPI on Linux, AX on macOS)
-    // land in later milestones — the protocol and gating already work.
-    return { invocationId: cmd.invocationId, ok: true, data: { kind: 'string', value: 'not implemented' } };
+    try {
+      const data = await this.execute(cmd.commandId, cmd.args);
+      return { invocationId: cmd.invocationId, ok: true, data: { kind: 'string', value: data } };
+    } catch (err) {
+      return {
+        invocationId: cmd.invocationId,
+        ok: false,
+        error: { code: 500, message: (err as Error).message, retryable: false },
+      };
+    }
   }
 
   onTrigger(handler: (event: TriggerEvent) => void): void {
-    // Global hotkey registration arrives with the native backend.
+    // Global hotkey registration arrives with the native listener backend.
     void handler;
   }
 
-  /** Introspect specs (used by tests and docs). */
+  private async execute(commandId: string, args: Args): Promise<string> {
+    const d = this.driver!;
+    switch (commandId) {
+      case 'pc.screenshot': {
+        const png = await d.screenshot(str(args.windowId));
+        return `image/png;base64,${png.slice(0, 64)}… (${png.length} chars)`;
+      }
+      case 'pc.list_windows': {
+        const windows = await d.listWindows();
+        return windows.map((w) => `${w.windowId}  ${w.title}  [${w.app}]`).join('\n');
+      }
+      case 'pc.click': {
+        await d.click({ x: num(args.x), y: num(args.y) });
+        return `clicked ${num(args.x)},${num(args.y)}`;
+      }
+      case 'pc.type_text': {
+        const text = str(args.text) ?? '';
+        await d.typeText('', text);
+        return `typed ${text.length} chars`;
+      }
+      case 'pc.press_key': {
+        const keys = str(args.keys) ?? '';
+        await d.pressKey('', keys);
+        return `pressed ${keys}`;
+      }
+      case 'pc.launch_app': {
+        const appId = str(args.appId) ?? '';
+        await d.launchApp(appId);
+        return `launched ${appId}`;
+      }
+      case 'pc.files.read': {
+        const path = str(args.path) ?? '';
+        const content = await d.readFile(path, 8_000);
+        return content;
+      }
+      default:
+        throw new Error(`unknown pc command: ${commandId}`);
+    }
+  }
+
   static specs(): CommandSpec[] {
     return SPECS;
   }
+}
 
-  private args(args: Args, key: string): string | undefined {
-    return args[key]?.kind === 'string' ? args[key].value : undefined;
-  }
+function str(v: Args[string] | undefined): string | undefined {
+  return v?.kind === 'string' ? v.value : undefined;
+}
+
+function num(v: Args[string] | undefined): number | undefined {
+  return v?.kind === 'number' ? v.value : undefined;
 }
