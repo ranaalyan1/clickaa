@@ -1,0 +1,34 @@
+// Clickaa protocol v1 — device events, backfill sync, live-view takeover.
+// Pattern credit: Muse proactive triggers + backfill diffs; Muse
+// AgentBrowserTakeoverControls; Grok Bot per-task sandbox streams.
+
+syntax = "proto3";
+
+package clickaa.v1;
+import "clickaa/v1/common.proto";
+
+// A device event that can wake the agent (no polling).
+message TriggerEvent {
+  string trigger_id = 1;            // matches TriggerSpec.id
+  bytes payload = 2;                // trigger-specific JSON
+  int64 occurred_at_ms = 3;
+  BackfillInfo backfill = 4;        // what changed since last sync
+}
+
+message BackfillInfo {
+  string cursor = 1;                // resumption cursor (Muse NodeSyncBaseline)
+  bool has_more = 2;
+}
+
+// Frames streamed from sandbox/browser work so the user can watch live.
+message StreamFrame {
+  string kind = 1;                  // "viewport" | "a11y-diff" | "audio" | "log"
+  bytes data = 2;
+  int64 at_ms = 3;
+}
+
+// User grabbing the wheel mid-task.
+message ControlCommand {
+  string action = 1;                // "takeover" | "release" | "cancel" | "pause"
+  string task_id = 2;
+}

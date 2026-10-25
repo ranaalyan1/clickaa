@@ -1,0 +1,33 @@
+// Clickaa protocol v1 — common envelope types.
+// Source of truth for every runtime <-> core message. Mirrored in TypeScript
+// (core/src/types.ts) until protobuf codegen lands.
+
+syntax = "proto3";
+
+package clickaa.v1;
+
+// Every message crosses a runtime boundary wrapped in an envelope so the core
+// can route, correlate, and audit uniformly (lesson: Grok Bot's single typed
+// protocol; Muse's NodeWire JSON).
+message Envelope {
+  string id = 1;            // unique message id (uuid)
+  string session_id = 2;    // agent session
+  string runtime_id = 3;    // originating runtime ("pc-host", "android", "sandbox-1")
+  int64  sent_at_ms = 4;    // unix millis
+  oneof payload {
+    CapabilitySnapshot snapshot = 10;
+    InvokeCommand invoke = 11;
+    CommandResult result = 12;
+    TriggerEvent trigger = 13;
+    ApprovalRequest approval_request = 14;
+    ApprovalDecision approval_decision = 15;
+    StreamFrame frame = 16;   // live view / audio / progress
+    ControlCommand control = 17;  // takeover, cancel, pause
+  }
+}
+
+message Error {
+  int32 code = 1;
+  string message = 2;
+  bool retryable = 3;
+}

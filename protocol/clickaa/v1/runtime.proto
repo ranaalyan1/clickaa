@@ -1,0 +1,88 @@
+// Clickaa protocol v1 — capability snapshot + command invocation.
+// Pattern credit: Muse's Hatch node-command system (typed, versioned specs,
+// capabilities advertised upward) and Dots' sky window2 API.
+
+syntax = "proto3";
+
+package clickaa.v1;
+import "clickaa/v1/common.proto";
+
+// A runtime announces what it can do. The core plans ONLY against this.
+message CapabilitySnapshot {
+  string runtime_id = 1;
+  string runtime_kind = 2;         // pc-host | android | sandbox-browser | connector
+  string protocol_version = 3;    // "1"
+  repeated CommandSpec commands = 4;
+  repeated DataSourceSpec data_sources = 5;
+  repeated TriggerSpec triggers = 6;
+}
+
+// Versioned, typed command. Never free-form shell strings.
+message CommandSpec {
+  string id = 1;                   // e.g. "pc.screenshot", "android.sms.send"
+  string version = 2;              // spec version, e.g. "v1"
+  string title = 3;
+  string description = 4;
+  repeated ArgSpec args = 5;
+  ApprovalMode default_approval = 6;   // HITL gate declared with the tool
+  repeated string requires_permissions = 7; // device permissions needed
+}
+
+message ArgSpec {
+  string name = 1;
+  ArgType type = 2;                 // string | number | boolean | enum | image
+  string description = 3;
+  repeated string enum_values = 4;
+  bool required = 5;
+}
+
+enum ArgType {
+  ARG_STRING = 0;
+  ARG_NUMBER = 1;
+  ARG_BOOLEAN = 2;
+  ARG_ENUM = 3;
+  ARG_IMAGE = 4;
+}
+
+message DataSourceSpec {
+  string id = 1;                     // e.g. "pc.files.watch", "android.notifications"
+  string version = 2;
+  string description = 3;
+  bool supports_backfill = 4;        // Muse: diff-style catch-up after offline
+}
+
+message TriggerSpec {
+  string id = 1;                     // e.g. "android.geofence.enter"
+  string version = 2;
+  string description = 3;
+}
+
+message InvokeCommand {
+  string invocation_id = 1;
+  string command_id = 2;            // matches CommandSpec.id
+  string command_version = 3;
+  map<string, ArgValue> args = 4;
+  string approved_by = 5;           // set when a HITL approval unlocked this
+}
+
+message ArgValue {
+  oneof value {
+    string s = 1;
+    double n = 2;
+    bool b = 3;
+    bytes img = 4;                   // binary payloads go via blob ref in prod
+  }
+}
+
+message CommandResult {
+  string invocation_id = 1;
+  bool ok = 2;
+  ArgValue data = 3;
+  Error error = 4;
+  repeated Card cards = 5;           // rich results rendered in chat (Muse cards)
+}
+
+message Card {
+  string kind = 1;                   // "calendar" | "calling" | "media" | ...
+  bytes json = 2;
+}

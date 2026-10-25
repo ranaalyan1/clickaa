@@ -1,0 +1,48 @@
+// Clickaa protocol v1 — human-in-the-loop approvals.
+// Pattern credit: Muse's NodeHitl (approval modes, scoped grants) +
+// Dots' computer-use confirmation policy (user-authored intent vs
+// third-party content, sensitive-data transmission rules).
+
+syntax = "proto3";
+
+package clickaa.v1;
+import "clickaa/v1/common.proto";
+
+enum ApprovalMode {
+  AUTO = 0;            // safe, reversible — just do it
+  ASK_ONCE = 1;        // ask first time per scope, then remember
+  ASK_ALWAYS = 2;      // every invocation (e.g. sms.send, payments)
+  NEVER = 3;           // refused outright regardless of grants
+}
+
+message ApprovalRequest {
+  string request_id = 1;
+  string invocation_id = 2;
+  string command_id = 3;
+  string summary = 4;              // human-readable action summary
+  string risk = 5;                 // what could go wrong, plainly
+  repeated ArgSummary args = 6;    // the exact args about to run
+  string scope = 7;                // proposed grant scope
+}
+
+message ArgSummary {
+  string name = 1;
+  string preview = 2;              // redacted/truncated value
+  bool sensitive = 3;              // OTP, password, secrets are masked
+}
+
+message ApprovalDecision {
+  string request_id = 1;
+  string invocation_id = 2;
+  bool approved = 3;
+  string scope = 4;                // "once" | "session" | "always:<command_id>"
+  string decided_by = 5;           // user identity / device
+  int64 decided_at_ms = 6;
+}
+
+// Sensitive-data rules (from the Dots confirmations study): typing secrets
+// into a form or embedding them in a URL counts as transmission.
+message SensitivityRules {
+  bool treat_typed_secrets_as_transmission = 1;
+  repeated string sensitive_categories = 2;  // "credentials", "otp", "pii", ...
+}
