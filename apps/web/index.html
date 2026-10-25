@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clickaa</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="panel" class="panel">
+    <header class="panel-head" id="panel-head">
+      <div class="brand">
+        <span class="dot"></span>
+        <span class="name">Clickaa</span>
+        <span class="status" id="status">connecting…</span>
+      </div>
+      <div class="head-actions">
+        <button id="btn-pin" class="icon-btn" title="Pin / unpin">⊞</button>
+        <button id="btn-collapse" class="icon-btn" title="Collapse">–</button>
+      </div>
+    </header>
+
+    <main class="chat" id="chat" aria-live="polite"></main>
+
+    <div id="approvals" class="approvals"></div>
+
+    <footer class="composer">
+      <textarea id="input" rows="1" placeholder="Ask Clickaa to do something…" autofocus></textarea>
+      <button id="send" title="Send">↵</button>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

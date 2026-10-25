@@ -62,12 +62,30 @@ The CLI ships with two runtimes wired to the protocol today: the **PC host**
 **browser sandbox** (worker contract). Approval prompts appear right in the
 terminal — try asking the agent to "click something" and watch the gate work.
 
+## The interface
+
+Clickaa's panel is the HeyClicky look: a dark, compact, floating window you
+park in a corner. Chat, live command results, and click-to-approve HITL cards
+(Yes / Always / No) all in one pane.
+
+```bash
+# browser mode
+npm run start          # → http://localhost:4747
+
+# floating overlay (Clicky-style, frameless + always-on-top)
+cd apps/desktop && npm install && npm start
+```
+
+The panel talks to the agent over REST + SSE — the same HITL engine as the
+CLI, so nothing can act on your machine without the card being approved.
+
 ## Status
 
 - [x] Protocol v1 (`protocol/clickaa/v1/*.proto` + TS mirror)
 - [x] Core: executor loop, tool registry, HITL engine, model adapter
 - [x] CLI with terminal approvals
-- [x] Tests (6) — tool loop, gating, grant memory, redaction
+- [x] Clicky-style panel (web + Electron overlay shell) with SSE + approvals
+- [x] Tests (8) — tool loop, gating, grants, redaction, server bridge
 - [ ] PC host native backends (Windows first)
 - [ ] Browser sandbox worker (containerized, live view + takeover)
 - [ ] Android runtime (command catalog app)

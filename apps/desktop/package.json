@@ -1,0 +1,14 @@
+{
+  "name": "@clickaa/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clickaa desktop overlay shell (Electron, Clicky-style floating panel)",
+  "license": "MIT",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

@@ -2,11 +2,17 @@
   "name": "clickaa-monorepo",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["core", "cli"],
+  "workspaces": [
+    "core",
+    "cli",
+    "apps/server",
+    "apps/desktop"
+  ],
   "scripts": {
     "build": "tsc -b",
     "test": "npm test -w core",
-    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false"
+    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false",
+    "start": "npm run start -w @clickaa/server"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
