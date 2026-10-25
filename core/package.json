@@ -1,0 +1,22 @@
+{
+  "name": "@clickaa/core",
+  "version": "0.1.0",
+  "description": "Clickaa agent core: model-agnostic executor, typed command protocol, HITL approvals",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": "./dist/src/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

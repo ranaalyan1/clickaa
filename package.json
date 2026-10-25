@@ -1,0 +1,14 @@
+{
+  "name": "clickaa-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["core", "cli"],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "npm test -w core",
+    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
